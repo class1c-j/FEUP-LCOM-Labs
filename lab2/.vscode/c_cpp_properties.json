@@ -1,6 +1,6 @@
 {
   "env": {
-    "minix.include": "${workspaceFolder}/../../.minix-src/include"
+    "minix.include": "${workspaceFolder}/../../.minix-src/include/"
   },
   "configurations": [{
     "name": "Minix",
