@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "i8254.h"
+
 int main(int argc, char *argv[]) {
   // sets the language of LCF messages (can be either EN-US or PT-PT)
   lcf_set_language("EN-US");
@@ -50,8 +52,35 @@ int(timer_test_time_base)(uint8_t timer, uint32_t freq) {
 }
 
 int(timer_test_int)(uint8_t time) {
-  /* To be implemented by the students */
-  printf("%s is not yet implemented!\n", __func__);
-
-  return 1;
+  int ipc_status, r;
+  message msg;
+  uint8_t timer_hook_id;
+  if (timer_subscribe_int(&timer_hook_id) != OK) {
+    fprintf(stderr, "timer_test_int: timer_subscribe_int: !OK");
+    return !OK;
+  }
+  while (get_timer_counter() / 60 < time) {
+    if ((r = driver_receive(ANY, &msg, &ipc_status)) != 0) {
+      printf("driver_receive failed with: %d", r);
+      continue;
+    }
+    if (is_ipc_notify(ipc_status)) {
+      switch (_ENDPOINT_P(msg.m_source)) {
+        case HARDWARE:
+          if (msg.m_notify.interrupts & timer_hook_id) {
+            timer_int_handler();
+            if (get_timer_counter() % 60 == 0) {
+              timer_print_elapsed_time();
+            }
+          }
+          break;
+        default:
+          break; /*no other notifications expected: do nothing*/
+      }
+    }
+    else { /*received a standard message, not a notification*/
+           /*no standard messages expected: do nothing*/
+    }
+  }
+  return OK;
 }
