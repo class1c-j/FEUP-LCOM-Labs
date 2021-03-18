@@ -29,16 +29,16 @@ int main(int argc, char *argv[]) {
 }
 
 int(timer_test_read_config)(uint8_t timer, enum timer_status_field field) {
-  /* To be implemented by the students */
-  printf("%s is not yet implemented!\n", __func__);
-  // TODO:
-  // 1) write read-back command
-  // - make sure 2 MSBs are 1
-  // - select only the status
-  // 2) read timer port
-  // 3) parse the configuration
-  // 4) call timer print conf
-  return 1;
+  uint8_t st;
+  if (timer_get_conf(timer, &st) != OK) {
+    fprintf(stderr, "timer_test_read_config: timer_get_conf: !OK\n");
+    return !OK;
+  }
+  if (timer_display_conf(timer, st, field) != OK) {
+    fprintf(stderr, "timer_test_read_config: timer_display_conf: !OK\n");
+    return !OK;
+  }
+  return OK;
 }
 
 int(timer_test_time_base)(uint8_t timer, uint32_t freq) {
