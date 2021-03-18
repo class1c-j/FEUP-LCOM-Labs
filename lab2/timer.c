@@ -6,10 +6,32 @@
 #include "i8254.h"
 
 int(timer_set_frequency)(uint8_t timer, uint32_t freq) {
-  /* To be implemented by the students */
-  printf("%s is not yet implemented!\n", __func__);
-
-  return 1;
+  uint8_t st;
+  if (timer_get_conf(timer, &st) != OK) {
+    fprintf(stderr, "timer_set_frequency: timer_get_conf: !OK\n");
+    return !OK;
+  }
+  uint8_t timer_mask = timer == 0 ? TIMER_SEL0 : timer == 1 ? TIMER_SEL1
+                                                            : TIMER_SEL2;
+  uint8_t control_word = timer_mask | TIMER_LSB_MSB | (st & (TIMER_ST_OPERATING_MODE | TIMER_BCD));
+  if (sys_outb(TIMER_CTRL, control_word) != OK) {
+    fprintf(stderr, "timer_set_frequency: sys_outb: could not write to TIMER_CTRL\n");
+    return !OK;
+  }
+  uint16_t counter = TIMER_FREQ / freq;
+  uint8_t counter_LSB;
+  util_get_LSB(counter, &counter_LSB);
+  uint8_t counter_MSB;
+  util_get_MSB(counter, &counter_MSB);
+  if (sys_outb(TIMER_0 + timer, counter_LSB) != OK) {
+    fprintf(stderr, "timer_set_frequency: sys_outb: could not write LSB to timer counter\n");
+    return !OK;
+  }
+  if (sys_outb(TIMER_0 + timer, counter_MSB) != OK) {
+    fprintf(stderr, "timer_set_frequency: sys_outb: could not write MSB to timer counter\n");
+    return !OK;
+  }
+  return OK;
 }
 
 int(timer_subscribe_int)(uint8_t *bit_no) {
@@ -56,7 +78,7 @@ int(timer_display_conf)(uint8_t timer, uint8_t st,
       break;
     case tsf_mode:
       val.count_mode = (st & TIMER_ST_OPERATING_MODE) >> 1;
-      if (val.count_mode > 5) {
+      if (val.count_mode > 5) { // don't care bits must be set to 0 (see handout table)
         val.count_mode &= (BIT(1) | BIT(0));
       }
       break;
