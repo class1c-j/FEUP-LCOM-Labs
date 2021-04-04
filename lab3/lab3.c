@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "i8042.h"
+#include "utils.h"
 
 int main(int argc, char *argv[]) {
   // sets the language of LCF messages (can be either EN-US or PT-PT)
@@ -74,6 +75,7 @@ int(kbd_test_scan)() {
     fprintf(stderr, "kbd_test_scan: keyboard_unsubscribe_int: !OK\n");
     return !OK;
   }
+  kbd_print_no_sysinb(get_sys_inb_count());
   return OK;
 }
 
@@ -97,6 +99,7 @@ int(kbd_test_poll)() {
     fprintf(stderr, "kbd_test_poll: kbc_enable_interrupts: !OK\n");
     return !OK;
   }
+  kbd_print_no_sysinb(get_sys_inb_count());
   return OK;
 }
 
