@@ -34,12 +34,14 @@ int main(int argc, char *argv[]) {
 int(kbd_test_scan)() {
   int ipc_status, r;
   message msg;
-  uint8_t kbd_hook_id, scancode;
+  uint8_t kbd_hook_id, kbd_byte = 0;
+  uint8_t index = 0;
+  uint8_t scancode[2];
   if (keyboard_subscribe_int(&kbd_hook_id) != OK) {
-    fprintf(stderr, "kbd_test_scan: keyboard_subscribe_int: !OK");
+    fprintf(stderr, "kbd_test_scan: keyboard_subscribe_int: !OK\n");
     return !OK;
   }
-  while (scancode != ESC_BREAKCODE) {
+  while (kbd_byte != ESC_BREAKCODE) {
     if ((r = driver_receive(ANY, &msg, &ipc_status)) != 0) {
       printf("driver_receive failed with: %d", r);
       continue;
@@ -49,6 +51,14 @@ int(kbd_test_scan)() {
         case HARDWARE:
           if (msg.m_notify.interrupts & kbd_hook_id) {
             kbc_ih();
+            kbd_byte = get_keyboard_byte();
+            scancode[index] = kbd_byte;
+            if (is_first_of_two_bytes(kbd_byte)) {
+              ++index;
+            } else {
+              kbd_print_scancode(!is_breakcode(kbd_byte), index + 1, scancode);
+              index = 0;
+            }
           }
           break;
         default:
@@ -59,7 +69,11 @@ int(kbd_test_scan)() {
            /*no standard messages expected: do nothing*/
     }
   }
-  return 1;
+  if (keyboard_unsubscribe_int() != OK) {
+    fprintf(stderr, "kbd_test_scan: keyboard_unsubscribe_int: !OK\n");
+    return !OK;
+  }
+  return OK;
 }
 
 int(kbd_test_poll)() {

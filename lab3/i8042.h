@@ -1,5 +1,7 @@
-#ifndef KEYBOARD_H_
-#define KEYBOARD_H_
+#ifndef I8042_H_
+#define I8042_H_
+
+#include <lcom/lcf.h>
 
 /* Useful macros for the lab */
 
@@ -46,13 +48,14 @@
 #define ENABLE_MOUSE_INT BIT(1)
 #define ENABLE_KEYBOARD_INT BIT(0)
 
-
 /* Function Declarations */
 
 int(keyboard_subscribe_int)(uint8_t *bit_no);
-int(keyboard_unsubscribe_int)(int hook_id);
+int(keyboard_unsubscribe_int)();
 int(kbc_issue_command)(uint8_t command);
 int(kbc_read_data)(uint8_t *data);
-uint8_t get_keyboard_byte();
+uint8_t(get_keyboard_byte)();
+bool(is_breakcode)(uint8_t scancode);
+bool(is_first_of_two_bytes)(uint8_t scancode);
 
-#endif // KEYBOARD_H_
+#endif // I8042_H_
