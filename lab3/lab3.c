@@ -55,7 +55,8 @@ int(kbd_test_scan)() {
             scancode[index] = kbd_byte;
             if (is_first_of_two_bytes(kbd_byte)) {
               ++index;
-            } else {
+            }
+            else {
               kbd_print_scancode(!is_breakcode(kbd_byte), index + 1, scancode);
               index = 0;
             }
@@ -77,10 +78,26 @@ int(kbd_test_scan)() {
 }
 
 int(kbd_test_poll)() {
-  /* To be completed by the students */
-  printf("%s is not yet implemented!\n", __func__);
-
-  return 1;
+  uint8_t kbd_byte = 0, index = 0;
+  uint8_t scancode[2];
+  while (kbd_byte != ESC_BREAKCODE) {
+    if (kbc_read_data(&kbd_byte) != OK) {
+      tickdelay(micros_to_ticks(WAIT_KBC));
+    }
+    scancode[index] = kbd_byte;
+    if (is_first_of_two_bytes(kbd_byte)) {
+      ++index;
+    }
+    else {
+      kbd_print_scancode(!is_breakcode(kbd_byte), index + 1, scancode);
+      index = 0;
+    }
+  }
+  if (kbc_enable_interrupts() != OK) {
+    fprintf(stderr, "kbd_test_poll: kbc_enable_interrupts: !OK\n");
+    return !OK;
+  }
+  return OK;
 }
 
 int(kbd_test_timed_scan)(uint8_t n) {

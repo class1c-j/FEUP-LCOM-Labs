@@ -23,9 +23,6 @@ int(keyboard_unsubscribe_int)() {
 }
 
 void(kbc_ih)() {
-  // read the status
-  uint8_t stat;
-  util_sys_inb(KBC_STATUS_REG, &stat);
   kbc_read_data(&keyboard_byte);
 }
 
@@ -60,6 +57,28 @@ int(kbc_read_data)(uint8_t *data) {
     tickdelay(micros_to_ticks(WAIT_KBC));
   }
   return !OK;
+}
+
+int(kbc_enable_interrupts)() {
+  if (kbc_issue_command(KBC_READ_COMMAND_BYTE) != OK) {
+    fprintf(stderr, "kbc_enable_interrupts: kbc_issue_command: !OK\n");
+    return !OK;
+  }
+  uint8_t command_byte;
+  if (util_sys_inb(KBC_OUT_BUF, &command_byte) != OK) {
+    fprintf(stderr, "kbc_enable_interrupts: util_sys_inb: !OK\n");
+    return !OK;
+  }
+  command_byte |= ENABLE_KEYBOARD_INT;
+  if (kbc_issue_command(KBC_WRITE_COMMAND_BYTE) != OK) {
+    fprintf(stderr, "kbc_enable_interrupts: kbc_issue_command: !OK\n");
+    return !OK;
+  }
+  if (sys_outb(KBC_IN_BUF_ARGS, command_byte) != OK) {
+    fprintf(stderr, "kbc_enable_interrupts: sys_outb: !OK\n");
+    return !OK;
+  }
+  return OK;
 }
 
 uint8_t(get_keyboard_byte()) {

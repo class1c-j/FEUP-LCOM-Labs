@@ -57,5 +57,6 @@ int(kbc_read_data)(uint8_t *data);
 uint8_t(get_keyboard_byte)();
 bool(is_breakcode)(uint8_t scancode);
 bool(is_first_of_two_bytes)(uint8_t scancode);
+int(kbc_enable_interrupts)();
 
 #endif // I8042_H_
