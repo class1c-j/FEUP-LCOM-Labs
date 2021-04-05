@@ -6,6 +6,7 @@
 #include <stdint.h>
 
 #include "i8042.h"
+#include "i8254.h"
 #include "utils.h"
 
 int main(int argc, char *argv[]) {
@@ -75,7 +76,10 @@ int(kbd_test_scan)() {
     fprintf(stderr, "kbd_test_scan: keyboard_unsubscribe_int: !OK\n");
     return !OK;
   }
-  kbd_print_no_sysinb(get_sys_inb_count());
+  if (kbd_print_no_sysinb(get_sys_inb_count()) != OK) {
+    fprintf(stderr, "kbd_test_scan: kbd_print_no_sysinb: !OK\n");
+    return !OK;
+  }
   return OK;
 }
 
@@ -99,13 +103,74 @@ int(kbd_test_poll)() {
     fprintf(stderr, "kbd_test_poll: kbc_enable_interrupts: !OK\n");
     return !OK;
   }
-  kbd_print_no_sysinb(get_sys_inb_count());
+  if (kbd_print_no_sysinb(get_sys_inb_count()) != OK) {
+    fprintf(stderr, "kbd_test_poll: kbd_print_no_sysinb: !OK\n");
+    return !OK;
+  }
   return OK;
 }
 
 int(kbd_test_timed_scan)(uint8_t n) {
-  /* To be completed by the students */
-  printf("%s is not yet implemented!\n", __func__);
-
-  return 1;
+  int ipc_status, r;
+  message msg;
+  uint8_t kbd_hook_id, kbd_byte = 0;
+  uint8_t timer_hook_id;
+  uint8_t index = 0;
+  uint8_t scancode[2];
+  uint32_t timer_counter = 0;
+  if (keyboard_subscribe_int(&kbd_hook_id) != OK) {
+    fprintf(stderr, "kbd_test_timed_scan: keyboard_subscribe_int: !OK\n");
+    return !OK;
+  }
+  if (timer_subscribe_int(&timer_hook_id) != OK) {
+    fprintf(stderr, "kbd_test_timed_scan: timer_subscribe_int: !OK\n");
+    return !OK;
+  }
+  while (kbd_byte != ESC_BREAKCODE && timer_counter / 60 < n) {
+    if ((r = driver_receive(ANY, &msg, &ipc_status)) != 0) {
+      printf("driver_receive failed with: %d", r);
+      continue;
+    }
+    if (is_ipc_notify(ipc_status)) {
+      switch (_ENDPOINT_P(msg.m_source)) {
+        case HARDWARE:
+          if (msg.m_notify.interrupts & timer_hook_id) {
+            timer_int_handler();
+            timer_counter = get_timer_counter();
+          }
+          if (msg.m_notify.interrupts & kbd_hook_id) {
+            reset_timer_counter();
+            kbc_ih();
+            kbd_byte = get_keyboard_byte();
+            scancode[index] = kbd_byte;
+            if (is_first_of_two_bytes(kbd_byte)) {
+              ++index;
+            }
+            else {
+              kbd_print_scancode(!is_breakcode(kbd_byte), index + 1, scancode);
+              index = 0;
+            }
+          }
+          break;
+        default:
+          break; /*no other notifications expected: do nothing*/
+      }
+    }
+    else { /*received a standard message, not a notification*/
+           /*no standard messages expected: do nothing*/
+    }
+  }
+  if (timer_unsubscribe_int() != OK) {
+    fprintf(stderr, "kbd_test_timed_scan: timer_unsubscribe_int: !OK\n");
+    return !OK;
+  }
+  if (keyboard_unsubscribe_int() != OK) {
+    fprintf(stderr, "kbd_test_timed_scan: keyboard_unsubscribe_int: !OK\n");
+    return !OK;
+  }
+  if (kbd_print_no_sysinb(get_sys_inb_count()) != OK) {
+    fprintf(stderr, "kbd_test_timed_scan: kbd_print_no_sysinb: !OK\n");
+    return !OK;
+  }
+  return OK;
 }
