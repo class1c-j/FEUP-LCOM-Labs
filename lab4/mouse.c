@@ -6,7 +6,7 @@ static uint8_t mouse_byte = 0;
 int(mouse_subscribe_int)(uint16_t *bit_no) {
   *bit_no = BIT(mouse_hook_id);
   if (sys_irqsetpolicy(MOUSE_IRQ, IRQ_REENABLE | IRQ_EXCLUSIVE,
-   &mouse_hook_id) != OK) {
+                       &mouse_hook_id) != OK) {
     fprintf(stderr, "mouse_subscribe_int: sys_irqsetpolicy: !OK\n");
     return !OK;
   }
@@ -49,27 +49,53 @@ uint8_t(get_mouse_byte)() {
 
 int(mouse_issue_command)(uint8_t command) {
 
-  uint8_t status = 0;
-  uint8_t tries = 3;
-
-  while (tries--) {
-    util_sys_inb(KBC_STATUS_REG, &status);
-    if ((status & KBC_IBF) == 0) {
-      sys_outb(KBC_IN_BUF_COMMANDS, KBC_WRITE_BYTE_TO_MOUSE);
-      sys_outb(KBC_IN_BUF_ARGS, command);
+  for (;;) {
+    uint8_t stat = 0;
+    if (util_sys_inb(KBC_STATUS_REG, &stat) != OK) {
+      fprintf(stderr, "mouse_issue_command: util_sys_inb: !OK\n");
+      return !OK;
+    }
+    if ((stat & KBC_IBF) == 0) {
+      if (sys_outb(KBC_IN_BUF_COMMANDS, KBC_WRITE_BYTE_TO_MOUSE) != OK) {
+        fprintf(stderr, "mouse_issue_command: sys_outb: !OK\n");
+        return !OK;
+      }
+      if (util_sys_inb(KBC_STATUS_REG, &stat) != OK) {
+        fprintf(stderr, "mouse_issue_command: util_sys_inb: !OK\n");
+        return !OK;
+      }
+      if (sys_outb(KBC_IN_BUF_ARGS, command) != OK) {
+        fprintf(stderr, "mouse_issue_command: sys_outb: !OK\n");
+        return !OK;
+      }
       uint8_t ack_byte = 0;
-      util_sys_inb(KBC_OUT_BUF, &ack_byte);
+      if (util_sys_inb(KBC_OUT_BUF, &ack_byte) != OK) {
+        fprintf(stderr, "mouse_issue_command: util_sys_inb: !OK\n");
+        return !OK;
+      }
       if (ack_byte == MOUSE_ACK) {
         return OK;
       }
     }
+    tickdelay(micros_to_ticks(WAIT_KBC));
   }
 
-  return !OK;
+  return OK;
 }
 
 int(mouse_disable_data_reporting)() {
-  mouse_issue_command(MOUSE_DISABLE_DATA_REPORTING);
+  if (mouse_issue_command(MOUSE_DISABLE_DATA_REPORTING) != OK) {
+    fprintf(stderr, "mouse_disable_data_reporting: mouse_issue_command: !OK\n");
+    return !OK;
+  }
+  return OK;
+}
+
+int(m_mouse_enable_data_reporting)() {
+  if (mouse_issue_command(MOUSE_ENABLE_DATA_REPORTING) != OK) {
+    fprintf(stderr, "mouse_disable_data_reporting: mouse_issue_command: !OK\n");
+    return !OK;
+  }
   return OK;
 }
 

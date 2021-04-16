@@ -38,7 +38,10 @@ int(mouse_test_packet)(uint32_t cnt) {
   uint8_t packet[3];
   uint8_t counter = 0;
   bool is_sync = false;
-  mouse_enable_data_reporting();
+  if (m_mouse_enable_data_reporting() != OK) {
+    fprintf(stderr, "mouse_test_packet: mouse_enable_data_reporting: !OK\n");
+    return !OK;
+  }
   if (mouse_subscribe_int(&mouse_irq_set) != OK) {
     fprintf(stderr, "mouse_test_packet: mouse_subscribe_int: !OK\n");
     return !OK;
@@ -60,12 +63,10 @@ int(mouse_test_packet)(uint32_t cnt) {
             }
 
             if (!is_sync && (mouse_byte & MOUSE_FIRST_BYTE_FLAG)) {
-              //counter = 0;
               is_sync = true;
             }
 
             if (is_sync) {
-              printf("Read %x as byte number %d\n", mouse_byte, counter);
               packet[counter++] = mouse_byte;
             } else {
               tickdelay(micros_to_ticks(WAIT_KBC));
@@ -88,9 +89,12 @@ int(mouse_test_packet)(uint32_t cnt) {
              /*no standard messages expected: do nothing*/
     }
   }
-  mouse_disable_data_reporting();
   if (mouse_unsubscribe_int() != OK) {
     fprintf(stderr, "mouse_test_packet: mouse_unsubscribe_int: !OK\n");
+    return !OK;
+  }
+  if (mouse_disable_data_reporting() != OK) {
+    fprintf(stderr, "mouse_test_packet: mouse_disable_data_reporting: !OK\n");
     return !OK;
   }
 

@@ -110,5 +110,6 @@ int(mouse_issue_command)(uint8_t command);
 uint8_t(get_mouse_byte)();
 int(mouse_disable_data_reporting)();
 void(mouse_assemble_packet)(uint8_t *bytes, struct packet *pp);
+int(m_mouse_enable_data_reporting)();
 
 #endif // I8042_H_
