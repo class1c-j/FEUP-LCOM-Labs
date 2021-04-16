@@ -32,6 +32,114 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
+typedef enum { INIT_D, GOING_UP, TOP, GOING_DOWN, DONE } drawing_state_t;
+typedef enum { INIT_M, RB_PRESS, LB_PRESS, INVALID } mouse_state_t;
+
+void(update_mouse_state)(struct packet *pp, mouse_state_t *state) {
+  if (pp->rb && pp->lb) {
+    *state = INVALID;
+    return;
+  }
+  switch (*state) {
+    case INIT_M:
+      if (pp->lb) {
+        *state = LB_PRESS;
+      } else if (pp->rb) {
+        *state = RB_PRESS;
+      }
+      break;
+    case RB_PRESS:
+      if (pp->lb) {
+        *state = INVALID;
+      } else if (!pp->rb) {
+        *state = INIT_M;
+      }
+      break;
+    case LB_PRESS:
+      if (pp->rb) {
+        *state = INVALID;
+      } else if (!pp->lb) {
+        *state = INIT_M;
+      }
+      break;
+    case INVALID:
+      if (!pp->rb && !pp->lb) {
+        *state = INIT_M;
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+void(update_drawing_state)(uint8_t x_len, uint16_t *x_delta, uint16_t tolerance,
+                           drawing_state_t *draw_state,
+                           mouse_state_t *mouse_state, struct packet *pp) {
+  switch (*draw_state) {
+    case INIT_D:
+      printf("INIT_D\n");
+      if (*mouse_state == LB_PRESS) {
+        *draw_state = GOING_UP;
+        *x_delta = 0;
+      }
+      break;
+    case GOING_UP:
+      printf("GOING_UP\n");
+      if (*mouse_state == RB_PRESS || pp->delta_x < -tolerance ||
+          pp->delta_y < -tolerance) {
+        *mouse_state = INVALID;
+        *draw_state = INIT_D;
+        *x_delta = 0;
+      } else {
+        *x_delta += pp->delta_x;
+        if (*mouse_state == INIT_M) {
+          if (*x_delta >= x_len) {
+            *draw_state = TOP;
+            *x_delta = 0;
+          } else {
+            *draw_state = INIT_D;
+          }
+        }
+      }
+      break;
+    case TOP:
+      printf("TOP\n");
+      if (abs(pp->delta_x) > tolerance || abs(pp->delta_y) > tolerance) {
+        *mouse_state = INVALID;
+        *draw_state = INIT_D;
+      } else if (*mouse_state == LB_PRESS) {
+        *draw_state = GOING_UP;
+      } else if (*mouse_state == RB_PRESS) {
+        *draw_state = GOING_DOWN;
+      }
+      break;
+    case GOING_DOWN:
+      printf("GOING_DOWN\n");
+      if (*mouse_state == LB_PRESS || pp->delta_x < -tolerance ||
+          pp->delta_y > tolerance) {
+        *mouse_state = INVALID;
+        *draw_state = INIT_D;
+        *x_delta = 0;
+      } else {
+        *x_delta += pp->delta_x;
+        if (*mouse_state == INIT_M) {
+          if (*x_delta >= x_len) {
+            *draw_state = DONE;
+            *x_delta = 0;
+          } else {
+            *draw_state = INIT_D;
+          }
+        }
+      }
+      break;
+    case DONE:
+      printf("DONE\n");
+      break;
+    default:
+      break;
+  }
+}
+
 int(mouse_test_packet)(uint32_t cnt) {
   int ipc_status, r;
   message msg;
@@ -187,9 +295,78 @@ int(mouse_test_async)(uint8_t idle_time) {
 }
 
 int(mouse_test_gesture)(uint8_t x_len, uint8_t tolerance) {
-  /* To be completed */
-  printf("%s: under construction\n", __func__);
-  return 1;
+  int ipc_status, r;
+  message msg;
+  uint16_t mouse_irq_set;
+  uint8_t packet[3];
+  uint8_t counter = 0;
+  bool is_sync = false;
+  mouse_state_t mouse_state = INIT_M;
+  drawing_state_t drawing_state = INIT_D;
+  uint16_t x_delta = 0;
+  if (m_mouse_enable_data_reporting() != OK) {
+    fprintf(stderr, "mouse_test_packet: mouse_enable_data_reporting: !OK\n");
+    return !OK;
+  }
+  if (mouse_subscribe_int(&mouse_irq_set) != OK) {
+    fprintf(stderr, "mouse_test_packet: mouse_subscribe_int: !OK\n");
+    return !OK;
+  }
+  while (drawing_state != DONE) {
+    if ((r = driver_receive(ANY, &msg, &ipc_status)) != 0) {
+      printf("driver_receive failed with: %d", r);
+      continue;
+    }
+    if (is_ipc_notify(ipc_status)) {
+      switch (_ENDPOINT_P(msg.m_source)) {
+        case HARDWARE:
+          if (msg.m_notify.interrupts & mouse_irq_set) {
+            mouse_ih();
+            uint8_t mouse_byte = get_mouse_byte();
+
+            if (counter != 0 && (mouse_byte & MOUSE_FIRST_BYTE_FLAG)) {
+              is_sync = false;
+            }
+
+            if (!is_sync && (mouse_byte & MOUSE_FIRST_BYTE_FLAG)) {
+              is_sync = true;
+            }
+
+            if (is_sync) {
+              packet[counter++] = mouse_byte;
+            } else {
+              tickdelay(micros_to_ticks(WAIT_KBC));
+              continue;
+            }
+
+            if (counter == 3) {
+              struct packet pp;
+              mouse_assemble_packet(packet, &pp);
+              mouse_print_packet(&pp);
+              update_mouse_state(&pp, &mouse_state);
+              update_drawing_state(x_len, &x_delta, tolerance, &drawing_state,
+                                   &mouse_state, &pp);
+              counter = 0;
+            }
+          }
+          break;
+        default:
+          break; /*no other notifications expected: do nothing*/
+      }
+    } else { /*received a standard message, not a notification*/
+             /*no standard messages expected: do nothing*/
+    }
+  }
+  if (mouse_unsubscribe_int() != OK) {
+    fprintf(stderr, "mouse_test_packet: mouse_unsubscribe_int: !OK\n");
+    return !OK;
+  }
+  if (mouse_disable_data_reporting() != OK) {
+    fprintf(stderr, "mouse_test_packet: mouse_disable_data_reporting: !OK\n");
+    return !OK;
+  }
+
+  return OK;
 }
 
 int(mouse_test_remote)(uint16_t period, uint8_t cnt) {
