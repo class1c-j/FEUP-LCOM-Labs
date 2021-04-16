@@ -60,7 +60,7 @@ int(mouse_test_packet)(uint32_t cnt) {
             }
 
             if (!is_sync && (mouse_byte & MOUSE_FIRST_BYTE_FLAG)) {
-              counter = 0;
+              //counter = 0;
               is_sync = true;
             }
 
