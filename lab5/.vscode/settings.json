@@ -7,4 +7,11 @@
   "editor.wordWrap": "bounded",
   "editor.wordWrapColumn": 100,
   "files.associations": { },
+  "cpplint.filters": [
+    "-whitespace",
+    "-legal/copyright",
+    "-readability/check",
+    "-build/include_subdir",
+    "-build/header_guard"
+  ],
 }
