@@ -43,6 +43,25 @@ void(mouse_ih)() {
   kbc_read_data(&mouse_byte);
 }
 
+int(mouse_ph)() {
+  return kbc_read_data(&mouse_byte);
+}
+
+int(kbc_issue_command)(uint8_t command) {
+  uint8_t stat;
+  uint8_t tries = 3;
+  while (tries--) {
+    util_sys_inb(KBC_STATUS_REG, &stat); /*assuming it returns OK*/
+    /*loop while 8042 input buffer is not empty*/
+    if ((stat & KBC_IBF) == 0) {
+      sys_outb(KBC_IN_BUF_COMMANDS, command); /*no args command*/
+      return OK;
+    }
+    tickdelay(micros_to_ticks(WAIT_KBC));
+  }
+  return !OK;
+}
+
 uint8_t(get_mouse_byte)() {
   return mouse_byte;
 }
@@ -94,6 +113,26 @@ int(mouse_disable_data_reporting)() {
 int(m_mouse_enable_data_reporting)() {
   if (mouse_issue_command(MOUSE_ENABLE_DATA_REPORTING) != OK) {
     fprintf(stderr, "mouse_disable_data_reporting: mouse_issue_command: !OK\n");
+    return !OK;
+  }
+  return OK;
+}
+
+int(mouse_reset_stream_mode)() {
+  if (mouse_issue_command(MOUSE_SET_STREAM_MODE) != OK) {
+    fprintf(stderr, "mouse_reset_stream_mode: mouse_issue_command: !OK\n");
+    return !OK;
+  }
+  return OK;
+}
+
+int(kbc_write_command_byte)(uint8_t command) {
+  if (kbc_issue_command(KBC_WRITE_COMMAND_BYTE) != OK) {
+    fprintf(stderr, "kbc_enable_interrupts: kbc_issue_command: !OK\n");
+    return !OK;
+  }
+  if (sys_outb(KBC_IN_BUF_ARGS, command) != OK) {
+    fprintf(stderr, "kbc_enable_interrupts: sys_outb: !OK\n");
     return !OK;
   }
   return OK;

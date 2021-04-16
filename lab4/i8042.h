@@ -111,5 +111,8 @@ uint8_t(get_mouse_byte)();
 int(mouse_disable_data_reporting)();
 void(mouse_assemble_packet)(uint8_t *bytes, struct packet *pp);
 int(m_mouse_enable_data_reporting)();
+int(mouse_reset_stream_mode)();
+int(kbc_write_command_byte)(uint8_t command);
+int(mouse_ph)();
 
 #endif // I8042_H_
