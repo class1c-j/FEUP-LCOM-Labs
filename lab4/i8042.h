@@ -103,5 +103,12 @@ uint8_t(get_keyboard_byte)();
 bool(is_breakcode)(uint8_t scancode);
 bool(is_first_of_two_bytes)(uint8_t scancode);
 int(kbc_enable_interrupts)();
+int(mouse_subscribe_int)(uint16_t *bit_no);
+int(mouse_unsubscribe_int)();
+void(mouse_ih)();
+int(mouse_issue_command)(uint8_t command);
+uint8_t(get_mouse_byte)();
+int(mouse_disable_data_reporting)();
+void(mouse_assemble_packet)(uint8_t *bytes, struct packet *pp);
 
 #endif // I8042_H_

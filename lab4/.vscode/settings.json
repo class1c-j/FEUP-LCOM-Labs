@@ -6,5 +6,13 @@
   "editor.tabSize": 2,
   "editor.wordWrap": "bounded",
   "editor.wordWrapColumn": 100,
-  "files.associations": { },
+  "files.associations": {},
+  "cpplint.filters": [
+    "-whitespace",
+    "-legal/copyright",
+    "-readability/check",
+    "-build/include_subdir",
+    "-build/header_guard"
+  ],
+  "clang-format.style": "{BasedOnStyle: LLVM, IndentWidth: 2, AllowShortBlocksOnASingleLine: Never, AllowShortCaseLabelsOnASingleLine: false, AllowShortFunctionsOnASingleLine: None, IndentCaseLabels: true}",
 }
