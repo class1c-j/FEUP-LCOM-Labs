@@ -6,6 +6,7 @@
 
 // Any header files included below this line should have been created by you
 #include "i8042.h"
+#include "i8254.h"
 
 int main(int argc, char *argv[]) {
   // sets the language of LCF messages (can be either EN-US or PT-PT)
@@ -102,9 +103,87 @@ int(mouse_test_packet)(uint32_t cnt) {
 }
 
 int(mouse_test_async)(uint8_t idle_time) {
-  /* To be completed */
-  printf("%s(%u): under construction\n", __func__, idle_time);
-  return 1;
+  int ipc_status, r;
+  message msg;
+  uint16_t mouse_irq_set;
+  uint8_t timer_irq_set;
+  uint8_t packet[3];
+  uint8_t counter = 0;
+  bool is_sync = false;
+  uint32_t timer_counter = 0;
+  if (m_mouse_enable_data_reporting() != OK) {
+    fprintf(stderr, "mouse_test_async: mouse_enable_data_reporting: !OK\n");
+    return !OK;
+  }
+  if (mouse_subscribe_int(&mouse_irq_set) != OK) {
+    fprintf(stderr, "mouse_test_async: mouse_subscribe_int: !OK\n");
+    return !OK;
+  }
+  if (timer_subscribe_int(&timer_irq_set) != OK) {
+    fprintf(stderr, "mouse_test_async: timer_subscribe_int: !OK\n");
+    return !OK;
+  }
+  while (timer_counter / sys_hz() < idle_time) {
+    if ((r = driver_receive(ANY, &msg, &ipc_status)) != 0) {
+      printf("driver_receive failed with: %d", r);
+      continue;
+    }
+    if (is_ipc_notify(ipc_status)) {
+      switch (_ENDPOINT_P(msg.m_source)) {
+        case HARDWARE:
+          if (msg.m_notify.interrupts & timer_irq_set) {
+            timer_int_handler();
+            timer_counter = get_timer_counter();
+          }
+          if (msg.m_notify.interrupts & mouse_irq_set) {
+            mouse_ih();
+            uint8_t mouse_byte = get_mouse_byte();
+
+            if (counter != 0 && (mouse_byte & MOUSE_FIRST_BYTE_FLAG)) {
+              is_sync = false;
+            }
+
+            if (!is_sync && (mouse_byte & MOUSE_FIRST_BYTE_FLAG)) {
+              is_sync = true;
+            }
+
+            if (is_sync) {
+              packet[counter++] = mouse_byte;
+            } else {
+              tickdelay(micros_to_ticks(WAIT_KBC));
+              continue;
+            }
+
+            if (counter == 3) {
+              struct packet pp;
+              mouse_assemble_packet(packet, &pp);
+              mouse_print_packet(&pp);
+              counter = 0;
+            }
+            reset_timer_counter();
+          }
+          break;
+        default:
+          break; /*no other notifications expected: do nothing*/
+      }
+    } else { /*received a standard message, not a notification*/
+             /*no standard messages expected: do nothing*/
+    }
+  }
+  if (mouse_unsubscribe_int() != OK) {
+    fprintf(stderr, "mouse_test_async: mouse_unsubscribe_int: !OK\n");
+    return !OK;
+  }
+  if (mouse_disable_data_reporting() != OK) {
+    fprintf(stderr, "mouse_test_async: mouse_disable_data_reporting: !OK\n");
+    return !OK;
+  }
+  if (timer_unsubscribe_int() != OK) {
+    fprintf(stderr, "mouse_test_async: timer_unsubscribe_int: !OK\n");
+    return !OK;
+  }
+
+  return OK;
 }
 
 int(mouse_test_gesture)(uint8_t x_len, uint8_t tolerance) {
