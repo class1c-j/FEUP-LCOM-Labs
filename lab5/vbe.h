@@ -15,6 +15,8 @@
 #define BIOS_VBE_SET_MODE 0x02
 
 /* Function Declarations */
-int vbe_set_mode(uint16_t mode);
+int (vbe_set_mode)(uint16_t mode);
+int(vbe_map_vram)(uint16_t mode);
+
 
 #endif // VBE_H_
