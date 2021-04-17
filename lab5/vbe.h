@@ -17,6 +17,6 @@
 /* Function Declarations */
 int (vbe_set_mode)(uint16_t mode);
 int(vbe_map_vram)(uint16_t mode);
-
+int(vg_draw_pattern)(uint8_t no_rect, uint32_t first, uint8_t step);
 
 #endif // VBE_H_

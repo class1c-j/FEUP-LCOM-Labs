@@ -7,6 +7,8 @@ static unsigned h_res;          /* Horizontal resolution in pixels */
 static unsigned v_res;          /* Vertical resolution in pixels */
 static unsigned bits_per_pixel; /* Number of VRAM bits per pixel */
 
+static vbe_mode_info_t mode_info;
+
 int(vbe_set_mode)(uint16_t mode) {
 
   reg86_t reg86;
@@ -31,22 +33,21 @@ int(vbe_map_vram)(uint16_t mode) {
   unsigned int vram_size; /* VRAM's size, but you can use the frame-buffer size, instead */
   int r;
 
-  vbe_mode_info_t vbe_mode_info;
 
   /* Use VBE function 0x01 to initialize vram_base and vram_size */
-  memset(&vbe_mode_info, 0, sizeof(vbe_mode_info_t));
-  if (vbe_get_mode_info(mode, &vbe_mode_info) != OK) {
+  memset(&mode_info, 0, sizeof(vbe_mode_info_t));
+  if (vbe_get_mode_info(mode, &mode_info) != OK) {
     fprintf(stderr, "vbe_map_vram: vbe_get_mode_info: !OK\n");
   }
 
-  h_res = vbe_mode_info.XResolution;
-  v_res = vbe_mode_info.YResolution;
-  bits_per_pixel = vbe_mode_info.BitsPerPixel;
+  h_res = mode_info.XResolution;
+  v_res = mode_info.YResolution;
+  bits_per_pixel = mode_info.BitsPerPixel;
 
   printf("read mode %x\n", mode);
 
-  vram_base = vbe_mode_info.PhysBasePtr;
-  vram_size = vbe_mode_info.XResolution * vbe_mode_info.YResolution * (vbe_mode_info.BitsPerPixel + 7) / 8;
+  vram_base = mode_info.PhysBasePtr;
+  vram_size = mode_info.XResolution * mode_info.YResolution * (mode_info.BitsPerPixel + 7) / 8;
 
   /* Allow memory mapping */
 
@@ -89,6 +90,39 @@ int(vg_draw_hline)(uint16_t x, uint16_t y, uint16_t len, uint32_t color) {
 int(vg_draw_rectangle)(uint16_t x, uint16_t y, uint16_t width, uint16_t height, uint32_t color) {
   for (int i = y; i < y + height; ++i) {
     vg_draw_hline(x, i, width, color);
+  }
+  return OK;
+}
+
+uint32_t(bit_range)(uint8_t start, uint8_t end) {
+  uint32_t res = 0;
+  for (int i = start; i <= end; ++i) {
+    res |= BIT(i);
+  }
+  return res;
+}
+
+int(vg_draw_pattern)(uint8_t no_rect, uint32_t first, uint8_t step) {
+  uint16_t w = h_res / no_rect;
+  uint16_t h = v_res / no_rect;
+
+  for (int row = 0; row < no_rect; ++row) {
+    for (int col = 0; col < no_rect; ++col) {
+      uint32_t color = 0;
+      uint8_t bytes = (bits_per_pixel + 7) / 8;
+      if (bytes == 1) {
+        color = (first + (row * no_rect + col) * step) % (1 << bits_per_pixel);
+      } else {
+        uint8_t red_first = (first & bit_range(mode_info.RedFieldPosition, mode_info.RedFieldPosition + mode_info.RedMaskSize)) >> mode_info.RedFieldPosition;
+        uint8_t green_first = (first & bit_range(mode_info.GreenFieldPosition, mode_info.GreenFieldPosition + mode_info.GreenMaskSize)) >> mode_info.GreenFieldPosition;
+        uint8_t blue_first = (first & bit_range(mode_info.BlueFieldPosition, mode_info.BlueFieldPosition + mode_info.BlueMaskSize)) >> mode_info.BlueFieldPosition;
+        uint8_t red = (red_first + col * step) % (1 << mode_info.RedMaskSize);
+        uint8_t green = (green_first + row * step) % (1 << mode_info.GreenMaskSize);
+        uint8_t blue = (blue_first + (col + row) * step) % (1 << mode_info.BlueMaskSize);
+        color = (red << mode_info.RedFieldPosition) | (green << mode_info.GreenFieldPosition) | (blue << mode_info.BlueFieldPosition);
+      }
+      vg_draw_rectangle(col * w, row * h, w, h, color);
+    }
   }
   return OK;
 }
